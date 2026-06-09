@@ -1,7 +1,5 @@
 defmodule ReplicaTest do
-  alias SyncSet.VersionVector
-  alias SyncSet.Replica
-  alias SyncSet.Entry
+  alias SyncSet.{VersionVector, Replica, Entry}
 
   use ExUnit.Case
 

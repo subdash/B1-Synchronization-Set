@@ -1,6 +1,5 @@
 defmodule SyncSet.Replica do
-  alias SyncSet.VersionVector
-  alias SyncSet.Entry
+  alias SyncSet.{VersionVector, Entry}
   # index is a map of path => Entry
   defstruct node_id: nil, index: %{}
 
@@ -121,6 +120,11 @@ defmodule SyncSet.Replica do
         put_entry(replica, path, %Entry{incoming | vector: merged})
 
       incoming.deleted ->
+        put_entry(replica, path, %Entry{current | vector: merged})
+
+      # If neither is deleted but they have the same content, then merge the vectors and
+      # return the replica.
+      current.checksum == incoming.checksum ->
         put_entry(replica, path, %Entry{current | vector: merged})
 
       true ->
