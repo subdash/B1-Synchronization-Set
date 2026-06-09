@@ -2,14 +2,21 @@ defmodule SyncSet.ConvergenceTest do
   use ExUnit.Case
   use ExUnitProperties
   alias SyncSet.{Replica, Checksum}
-  # alias SyncSet.Checksum
 
   property "gossiping replicas converge" do
     check all(ops <- list_of(operation(), max_length: 20)) do
+      # ops is a list of up to 20 operations where each element comes from the operation() generator.
+      # check all loops over those and on failure shrinks to the smallest list that still fails.
+
+      # Set up list of nodes and a replica map of node => replica where each replica knows its own id
       nodes = [:a, :b, :c]
       replicas = Map.new(nodes, fn n -> {n, Replica.new(n)} end)
+      # Replay history: fold the generated op list over the replicas. At this point, no replicas
+      # have synced.
       replicas = Enum.reduce(ops, replicas, &apply_op/2)
+      # Sync replicas: run gossip rounds until the world stops changing or round cap trips
       converged = gossip_to_fixpoint(replicas)
+      # Indexes tells us how many distinct indexes there are: there should only be 1
       indexes = converged |> Map.values() |> Enum.map(& &1.index) |> Enum.uniq()
       assert length(indexes) == 1
     end
