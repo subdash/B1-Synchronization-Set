@@ -1,27 +1,27 @@
 defmodule SyncSet.Replica do
-  alias SyncSet.{VersionVector, Entry}
+  alias SyncSet.{Conflict, VersionVector, Entry, Replica}
   # index is a map of path => Entry
   defstruct node_id: nil, index: %{}
 
   def new(node) do
-    %SyncSet.Replica{node_id: node, index: %{}}
+    %Replica{node_id: node, index: %{}}
   end
 
-  def get(%SyncSet.Replica{index: index}, path) do
+  def get(%Replica{index: index}, path) do
     Map.get(index, path)
   end
 
-  def local_write(replica = %SyncSet.Replica{}, path, checksum, size) do
+  def local_write(replica = %Replica{}, path, checksum, size) do
     # Obtain the corresponding entry's vector or create a new one, bump version for
     # replica node, and return updated replica and entry.
     vector = safe_get_vector(replica, path)
-    vector = SyncSet.VersionVector.increment(vector, replica.node_id)
+    vector = VersionVector.increment(vector, replica.node_id)
     entry = %Entry{size: size, checksum: checksum, vector: vector, deleted: false}
     replica = put_entry(replica, path, entry)
     {replica, entry}
   end
 
-  def local_delete(replica = %SyncSet.Replica{}, path) do
+  def local_delete(replica = %Replica{}, path) do
     case Map.get(replica.index, path) do
       # If the entry is absent or already deleted, make this a no-op, otherwise
       # we could end up with an infinite loop of peers propagating the newer
@@ -37,7 +37,7 @@ defmodule SyncSet.Replica do
       # and clear content metadata (checksum/size) so concurrent tombstones converge.
       %Entry{deleted: false} ->
         vector = safe_get_vector(replica, path)
-        vector = SyncSet.VersionVector.increment(vector, replica.node_id)
+        vector = VersionVector.increment(vector, replica.node_id)
 
         entry = %Entry{
           size: 0,
@@ -51,7 +51,7 @@ defmodule SyncSet.Replica do
     end
   end
 
-  def apply_remote(%SyncSet.Replica{} = replica, path, incoming_entry) do
+  def apply_remote(%Replica{} = replica, path, incoming_entry) do
     # Take an incoming entry and reconcile it with the replica's current index.
     case current = Map.get(replica.index, path) do
       nil ->
@@ -77,7 +77,7 @@ defmodule SyncSet.Replica do
     end
   end
 
-  def merge(into = %SyncSet.Replica{}, other = %SyncSet.Replica{}) do
+  def merge(into = %Replica{}, other = %Replica{}) do
     # Anti-entropy at the replica level. It brings `into` up to date with everything
     # other_replica knows by replaying each of other's entries using apply_remote.
     # The accumulator is the replica being built up. By iterating over other.index,
@@ -133,20 +133,20 @@ defmodule SyncSet.Replica do
         # lexicographically greater and return the replica where the corresponding entry
         # wins. We preserve the loser under a sync-conflict path so that no edit is lost.
         {win_entry, lose_entry} =
-          case SyncSet.Conflict.winner(current, incoming) do
+          case Conflict.winner(current, incoming) do
             :left -> {current, incoming}
             :right -> {incoming, current}
           end
 
         replica = put_entry(replica, path, %Entry{win_entry | vector: merged})
-        conflict_path = SyncSet.Conflict.conflict_path(path, lose_entry.checksum)
+        conflict_path = Conflict.conflict_path(path, lose_entry.checksum)
         apply_remote(replica, conflict_path, lose_entry)
     end
   end
 
-  defp put_entry(replica = %SyncSet.Replica{}, path, entry) do
+  defp put_entry(replica = %Replica{}, path, entry) do
     # Helper function for a common operation to update an entry in a replica's index
     index = Map.put(replica.index, path, entry)
-    %SyncSet.Replica{replica | index: index}
+    %Replica{replica | index: index}
   end
 end

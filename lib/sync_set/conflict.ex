@@ -1,5 +1,7 @@
 defmodule SyncSet.Conflict do
-  def winner(%SyncSet.Entry{checksum: left_checksum}, %SyncSet.Entry{checksum: right_checksum}) do
+  alias SyncSet.Entry
+
+  def winner(%Entry{checksum: left_checksum}, %Entry{checksum: right_checksum}) do
     case left_checksum >= right_checksum do
       true -> :left
       false -> :right
