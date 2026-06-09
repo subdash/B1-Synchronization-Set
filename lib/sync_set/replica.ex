@@ -53,12 +53,12 @@ defmodule SyncSet.Replica do
 
   def apply_remote(%Replica{} = replica, path, incoming_entry) do
     # Take an incoming entry and reconcile it with the replica's current index.
-    case current = Map.get(replica.index, path) do
+    case Map.get(replica.index, path) do
       nil ->
         # In the case that there is no entry at the path, write the incoming entry.
         put_entry(replica, path, incoming_entry)
 
-      _ ->
+      current ->
         # No-op when incoming is equal to or dominated by the current -- we already
         # hold a newer-or-equal version.
         case VersionVector.compare(incoming_entry.vector, current.vector) do

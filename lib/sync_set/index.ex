@@ -70,31 +70,31 @@ defmodule SyncSet.Index do
 
   @impl true
   def handle_call({:local_write, path, checksum, size}, _from, state) do
-    # Save current index state and write to the replica
-    before = state.replica.index
     {replica, _entry} = Replica.local_write(state.replica, path, checksum, size)
-    # Persist changes to det table and return updated replica
-    persist_changes(before, replica.index, state.table)
-    {:reply, :ok, %{state | replica: replica}}
+    commit(state, replica)
   end
 
   @impl true
   def handle_call({:local_delete, path}, _from, state) do
-    before = state.replica.index
     {replica, _entry} = Replica.local_delete(state.replica, path)
-    persist_changes(before, replica.index, state.table)
-    {:reply, :ok, %{state | replica: replica}}
+    commit(state, replica)
   end
 
   @impl true
   def handle_call({:apply_remote, path, incoming_entry}, _from, state) do
-    before = state.replica.index
     replica = Replica.apply_remote(state.replica, path, incoming_entry)
-    persist_changes(before, replica.index, state.table)
-    {:reply, :ok, %{state | replica: replica}}
+    commit(state, replica)
   end
 
   # --- Private functions ---
+
+  # Shared tail for the three mutating handle_calls: persist the diff between
+  # the old and new replica indexes, then reply :ok with the new replica as state.
+  defp commit(state, new_replica) do
+    persist_changes(state.replica.index, new_replica.index, state.table)
+    {:reply, :ok, %{state | replica: new_replica}}
+  end
+
   defp persist_changes(before_index, after_index, table) do
     keys = Enum.uniq(Map.keys(before_index) ++ Map.keys(after_index))
 

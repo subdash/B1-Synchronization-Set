@@ -16,7 +16,7 @@ defmodule SyncSet.VersionVector do
        end) do
       :equal
     else
-      covers?(v1, v2)
+      dominance(v1, v2)
     end
   end
 
@@ -35,7 +35,7 @@ defmodule SyncSet.VersionVector do
     Map.merge(a, b, fn _key, v1, v2 -> max(v1, v2) end)
   end
 
-  defp covers?(v1, v2) do
+  defp dominance(v1, v2) do
     cond do
       Enum.all?(v2, fn {node, count} ->
         Map.get(v1, node, 0) >= count
