@@ -24,3 +24,4 @@ sync_set-*.tar
 
 *.dets
 tmp/
+.claude/
