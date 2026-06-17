@@ -36,6 +36,15 @@ and our sessions. This is a checklist/index, not a textbook.
 - Modify-wins vs delete-wins (concurrent edit/delete policy)
 - Content checksum / hash (SHA-256)
 - Term ordering as a deterministic tie-break
+- Causality / happened-before relation
+- Concurrency detection vs. total order (what timestamps can't do)
+- Clock skew (why not wall-clock LWW)
+- Origin-tracking (a vector component counts *local-origin* updates)
+- Echo loop / echo suppression
+- Index-before-write ordering invariant
+- Control plane vs. data plane separation
+- Head-of-line blocking (why bulk bytes don't ride the control channel)
+- Best-effort broadcast vs. anti-entropy backstop
 
 ## Elixir / OTP
 
@@ -56,6 +65,26 @@ and our sessions. This is a checklist/index, not a textbook.
 - GenServer (deferred process wrapper around the pure core)
 - Compile-time vs runtime module availability
 - Elixir set-theoretic type checker (1.20)
+- GenServer as a serialization point (mailbox as mutex)
+- Serialized access to shared mutable state (the concurrency boundary)
+- Lost-update race
+- DETS — disk-based term storage (`open_file`, `foldl`, `insert`, `sync`, `close`)
+- DETS dirty flag / auto-repair on unclean close
+- Durability: flush-before-ack (`:dets.sync`)
+- Diffed persistence (write only changed rows)
+- Append-only / update-only store (enabled by tombstones)
+- `Process.flag(:trap_exit, true)`
+- `terminate/2` graceful cleanup; exit signal → graceful stop
+- Debounce timer (`Process.send_after/3` + `Process.cancel_timer/1`)
+- Stability detection (size + mtime resampling)
+- `File.stat/2`
+- Erlang distribution; shared cookie
+- `{name, node}` remote-process addressing
+- `Node.self/0`, `Node.list/0`
+- `:net_kernel.monitor_nodes`; `{:nodeup, _}` / `{:nodedown, _}`
+- `GenServer.cast/2`, `GenServer.abcast/3`
+- Application / runtime config (`Application.get_env/3`, `config/runtime.exs`)
+- `Keyword.split/2`, `Keyword.fetch!/2`, `Keyword.get/3`
 
 ## Testing
 

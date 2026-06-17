@@ -39,7 +39,7 @@ defmodule SyncSet.LocalChangeTest do
     :ok = File.write!(file_path, "some bytes lol")
     # Hand LocalChange the event that in production would be sent by the Watcher
     send(lc_name, {:stable, file_path})
-    assert_receive {:announce, ^file_path}, 2000
+    assert_receive {:local_change, ^file_path}, 2000
     %Entry{checksum: actual_checksum} = Index.get(idx_name, file_path)
     {:ok, expected_checksum} = Checksum.of_file(file_path)
     assert actual_checksum == expected_checksum
@@ -60,7 +60,7 @@ defmodule SyncSet.LocalChangeTest do
     # Block until :stable handler is done
     :sys.get_state(lc_name)
     # Prove that LocalChange stayed silent since the file did not change
-    refute_receive {:announce, _}
+    refute_receive {:local_change, _}
     %Entry{vector: new_vector} = Index.get(idx_name, file_path)
     assert old_vector == new_vector
   end
@@ -82,7 +82,7 @@ defmodule SyncSet.LocalChangeTest do
     :sys.get_state(lc_name)
     # Validate that a change was announced for the file and that the file
     # was tombstoned in its index.
-    assert_receive {:announce, ^file_path}, 2000
+    assert_receive {:local_change, ^file_path}, 2000
     %Entry{deleted: deleted_after} = Index.get(idx_name, file_path)
     assert deleted_after
   end
@@ -98,7 +98,7 @@ defmodule SyncSet.LocalChangeTest do
     :sys.get_state(lc_name)
     # Validate that no entry was created, and no announce
     assert nil == Index.get(idx_name, file_path)
-    refute_receive {:announce, ^file_path}
+    refute_receive {:local_change, ^file_path}
   end
 
   test "delete already-deleted file -> nothing", %{
@@ -113,7 +113,7 @@ defmodule SyncSet.LocalChangeTest do
     # First delete
     send(lc_name, {:deleted, file_path})
     # Assert deletion announced
-    assert_receive {:announce, ^file_path}, 2000
+    assert_receive {:local_change, ^file_path}, 2000
     # Capture vector before
     %Entry{vector: before_vector} = Index.get(idx_name, file_path)
     # Second delete
@@ -122,6 +122,6 @@ defmodule SyncSet.LocalChangeTest do
     :sys.get_state(lc_name)
     %Entry{vector: after_vector} = Index.get(idx_name, file_path)
     assert before_vector == after_vector
-    refute_receive {:announce, _}
+    refute_receive {:local_change, _}
   end
 end

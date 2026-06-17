@@ -34,7 +34,7 @@ defmodule SyncSet.LocalChange do
 
         _ ->
           Index.local_write(state.index, path, checksum, size)
-          send(state.control, {:announce, path})
+          send(state.control, {:local_change, path})
           {:noreply, state}
       end
     else
@@ -49,7 +49,7 @@ defmodule SyncSet.LocalChange do
     case Index.get(state.index, path) do
       %Entry{deleted: false} ->
         Index.local_delete(state.index, path)
-        send(state.control, {:announce, path})
+        send(state.control, {:local_change, path})
         {:noreply, state}
 
       _ ->
