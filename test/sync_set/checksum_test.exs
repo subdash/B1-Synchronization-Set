@@ -16,8 +16,8 @@ defmodule SyncSet.ChecksumTest do
   test "of_file/1 returns hash of file", %{tmp_dir: tmp_dir} do
     file_path = Path.join(tmp_dir, "tmp_file")
     :ok = File.write!(file_path, "hello")
-    {:ok, file_contents} = Checksum.of_file(file_path)
-    assert file_contents == @known_hash
+    {:ok, file_checksum} = Checksum.of_file(file_path)
+    assert file_checksum == @known_hash
   end
 
   @tag :tmp_dir

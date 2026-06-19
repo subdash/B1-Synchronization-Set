@@ -1,13 +1,14 @@
 defmodule SyncSet.LocalChangeTest do
   use ExUnit.Case, async: true
 
+  @moduletag :tmp_dir
+
   alias SyncSet.{Checksum, Entry, Index, LocalChange}
 
-  setup do
+  setup %{tmp_dir: tmp_dir} do
     # Generate unique names for each test run
     uniq = System.unique_integer([:positive])
-    # Filesystem location of the DETS table -- where the index is persisted on disk
-    tmp_dir = System.tmp_dir!()
+    # sync_dir and DETS file live under ExUnit's tmp_dir, wiped before each test
     sync_dir = Path.join(tmp_dir, "sync_#{uniq}")
     :ok = File.mkdir_p!(sync_dir)
     path = Path.join(tmp_dir, "idx_#{uniq}.dets")
@@ -18,11 +19,6 @@ defmodule SyncSet.LocalChangeTest do
     # By passing self() for control, the test process's mailbox receives messages
     # from the LocalChange GenServer
     lc_opts = [index: idx_name, control: self(), name: lc_name]
-    # Remove the temp file and temp sync dir
-    on_exit(fn ->
-      File.rm(path)
-      File.rm_rf(sync_dir)
-    end)
 
     start_supervised!({Index, idx_opts})
     start_supervised!({LocalChange, lc_opts})

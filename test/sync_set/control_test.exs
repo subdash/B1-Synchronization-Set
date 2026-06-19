@@ -1,10 +1,11 @@
 defmodule SyncSet.ControlTest do
   use ExUnit.Case, async: true
+  @moduletag :tmp_dir
   alias SyncSet.{Control, Entry, Index, VersionVector}
 
-  setup do
+  setup %{tmp_dir: tmp_dir} do
     uniq = System.unique_integer([:positive])
-    tmp_dir = System.tmp_dir!()
+    # sync_dir and DETS file live under ExUnit's tmp_dir, wiped before each test
     sync_dir = Path.join(tmp_dir, "sync_#{uniq}")
     :ok = File.mkdir_p!(sync_dir)
     path = Path.join(tmp_dir, "idx_#{uniq}.dets")
@@ -15,11 +16,6 @@ defmodule SyncSet.ControlTest do
     idx_opts = [dets_path: path, table: table, name: idx_name]
     # self() as data_plane: pull requests land in test process mailbox
     ctrl_opts = [index: idx_name, data_plane: self(), name: ctrl_name]
-
-    on_exit(fn ->
-      File.rm(path)
-      File.rm_rf(sync_dir)
-    end)
 
     start_supervised!({Index, idx_opts})
     start_supervised!({Control, ctrl_opts})

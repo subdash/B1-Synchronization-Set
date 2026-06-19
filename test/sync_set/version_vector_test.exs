@@ -135,6 +135,6 @@ defmodule SyncSet.VersionVectorTest do
   end
 
   defp version_vector do
-    map_of(member_of([:A, :B, :C, :D, :E]), integer(0..5), max_length: 3)
+    map_of(member_of([:A, :B, :C, :D, :E, :F, :G, :H, :I, :J]), integer(0..8), max_length: 3)
   end
 end

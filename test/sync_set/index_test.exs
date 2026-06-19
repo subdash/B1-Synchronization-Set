@@ -1,18 +1,19 @@
 defmodule SyncSet.IndexTest do
   use ExUnit.Case
 
+  @moduletag :tmp_dir
+
   alias SyncSet.{Entry, Index}
 
-  setup do
+  setup %{tmp_dir: tmp_dir} do
     # Generate unique names for each test run
     uniq = System.unique_integer([:positive])
-    # Filesystem location of the DETS table -- where the index is persisted on disk
-    path = Path.join(System.tmp_dir!(), "idx_#{uniq}.dets")
+    # DETS file lives under ExUnit's tmp_dir, which is wiped before each test
+    # so leftover files can never leak across runs
+    path = Path.join(tmp_dir, "idx_#{uniq}.dets")
     table = String.to_atom("table_#{uniq}")
     name = String.to_atom("name_#{uniq}")
     opts = [dets_path: path, table: table, name: name]
-    # Remove the temp file
-    on_exit(fn -> File.rm(path) end)
     start_supervised!({Index, opts})
     {:ok, server: name, opts: opts}
   end

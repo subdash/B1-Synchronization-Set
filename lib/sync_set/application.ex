@@ -10,6 +10,7 @@ defmodule SyncSet.Application do
     children = [
       # Starts a worker by calling: SyncSet.Worker.start_link(arg)
       # {SyncSet.Worker, arg}
+      {Task.Supervisor, name: SyncSet.TransferSupervisor}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
