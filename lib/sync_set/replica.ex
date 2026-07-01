@@ -56,20 +56,22 @@ defmodule SyncSet.Replica do
     case Map.get(replica.index, path) do
       nil ->
         # In the case that there is no entry at the path, write the incoming entry.
-        put_entry(replica, path, incoming_entry)
+        replica = put_entry(replica, path, incoming_entry)
+        {:ok, replica}
 
       current ->
         # No-op when incoming is equal to or dominated by the current -- we already
         # hold a newer-or-equal version.
         case VersionVector.compare(incoming_entry.vector, current.vector) do
           :equal ->
-            replica
+            {:ok, replica}
 
           :dominated ->
-            replica
+            {:ok, replica}
 
           :dominates ->
-            put_entry(replica, path, incoming_entry)
+            replica = put_entry(replica, path, incoming_entry)
+            {:ok, replica}
 
           :concurrent ->
             resolve(replica, path, current, incoming_entry)
@@ -88,7 +90,8 @@ defmodule SyncSet.Replica do
     # peers in), and commutative (also doesn't depend on the order in which you iterate over
     # other.index).
     Enum.reduce(other.index, into, fn {path, entry}, acc ->
-      apply_remote(acc, path, entry)
+      {_outcome, replica} = apply_remote(acc, path, entry)
+      replica
     end)
   end
 
@@ -111,36 +114,41 @@ defmodule SyncSet.Replica do
       # If there is already a tombstone on both entries, we will return the replica
       # with (current v merged).
       current.deleted && incoming.deleted ->
-        put_entry(replica, path, %Entry{current | vector: merged})
+        replica = put_entry(replica, path, %Entry{current | vector: merged})
+        {:ok, replica}
 
       # In either case where only one entry is tombstoned, favor the one that is not. This way
       # a file with conflicts gets resurrected on the node where it was deleted, rather than
       # being deleted/lost on the node where it was present.
       current.deleted ->
-        put_entry(replica, path, %Entry{incoming | vector: merged})
+        replica = put_entry(replica, path, %Entry{incoming | vector: merged})
+        {:ok, replica}
 
       incoming.deleted ->
-        put_entry(replica, path, %Entry{current | vector: merged})
+        replica = put_entry(replica, path, %Entry{current | vector: merged})
+        {:ok, replica}
 
       # If neither is deleted but they have the same content, then merge the vectors and
       # return the replica.
       current.checksum == incoming.checksum ->
-        put_entry(replica, path, %Entry{current | vector: merged})
+        replica = put_entry(replica, path, %Entry{current | vector: merged})
+        {:ok, replica}
 
       true ->
         # Neither deleted -- this means there are concurrent updates, neither of which
         # contain a tombstoned entry. In this case, we just pick the checksum that is
         # lexicographically greater and return the replica where the corresponding entry
         # wins. We preserve the loser under a sync-conflict path so that no edit is lost.
-        {win_entry, lose_entry} =
+        {win_entry, lose_entry, demoted} =
           case Conflict.winner(current, incoming) do
-            :left -> {current, incoming}
-            :right -> {incoming, current}
+            :left -> {current, incoming, :remote}
+            :right -> {incoming, current, :local}
           end
 
         replica = put_entry(replica, path, %Entry{win_entry | vector: merged})
         conflict_path = Conflict.conflict_path(path, lose_entry.checksum)
-        apply_remote(replica, conflict_path, lose_entry)
+        {_inner, replica} = apply_remote(replica, conflict_path, lose_entry)
+        {{:conflict, conflict_path, demoted}, replica}
     end
   end
 

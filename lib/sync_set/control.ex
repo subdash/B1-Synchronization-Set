@@ -1,4 +1,14 @@
 defmodule SyncSet.Control do
+  @moduledoc """
+  Change-notification plane over Erlang distribution.
+
+  Announces this node's local changes to connected peers, and reacts to peers'
+  announcements by deciding what to do — fetch new content via the data plane,
+  apply a delete, or ignore what we already have. Carries only metadata; file
+  bytes move on the TCP data plane. The eager counterpart to the Reconciler's
+  catch-up anti-entropy.
+  """
+
   use GenServer
   alias SyncSet.{Entry, Index, VersionVector}
 
@@ -84,6 +94,13 @@ defmodule SyncSet.Control do
 
       # Live content we lack -> fetch it
       true ->
+        # TODO(conflict copies): for a *concurrent* live edit this just pulls the
+        # incoming entry (and verify_and_land overwrites local), but it never
+        # materializes the sync-conflict copy the way Reconciler.reconcile_snapshot
+        # does — the announce path and the anti-entropy path diverge on conflict
+        # handling, so two nodes editing while both online won't produce the
+        # keep-both copy until a later reconcile. apply_remote now returns the
+        # `{:conflict, ...}` outcome that would let this path do the same.
         send(state.data_plane, {:pull, from_node, path, incoming.checksum})
         {:noreply, state}
     end

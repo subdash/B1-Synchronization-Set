@@ -17,6 +17,7 @@ defmodule SyncSet.DataPlane do
   then renaming, by the time the watcher event arrives the index already knows
   about it and the echo suppression logic drops it.
   """
+
   use GenServer
 
   alias SyncSet.Index
@@ -31,6 +32,10 @@ defmodule SyncSet.DataPlane do
   def start_link(opts) do
     {start_opts, init_opts} = Keyword.split(opts, [:name])
     GenServer.start_link(__MODULE__, init_opts, start_opts)
+  end
+
+  def get_port(server) do
+    GenServer.call(server, :get_port)
   end
 
   @impl true
@@ -78,6 +83,11 @@ defmodule SyncSet.DataPlane do
     :ok = sweep_orphans(sync_dir, index)
 
     {:noreply, %{state | acceptor: pid}}
+  end
+
+  @impl true
+  def handle_call(:get_port, _from, state) do
+    {:reply, state.port, state}
   end
 
   # Exposed for testing

@@ -123,7 +123,7 @@ defmodule SyncSet.IndexTest do
            }
 
     # Apply concurrent entry for tracked file
-    :ok =
+    {:conflict, _, :local} =
       Index.apply_remote(server, path0, %Entry{
         vector: %{nonode@nohost: 3, somenode@nohost: 2},
         checksum: "dfgh3456",

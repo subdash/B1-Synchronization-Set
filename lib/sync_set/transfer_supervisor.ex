@@ -3,6 +3,7 @@ defmodule SyncSet.TransferSupervisor do
   A pure module exposing `start_transfer/3` so that peers can pull file contents
   when changes are announced.
   """
+
   alias SyncSet.{Checksum, Config, Index}
   require Logger
   @socket_opts [:binary, packet: 4, active: false, reuseaddr: true]

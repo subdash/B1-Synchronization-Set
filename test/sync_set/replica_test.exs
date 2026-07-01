@@ -64,7 +64,7 @@ defmodule ReplicaTest do
       }
 
       assert VersionVector.compare(incoming_entry.vector, r.index["README"].vector) == :dominates
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
 
       assert r.index["README"].vector == %{node1: 3}
     end
@@ -84,7 +84,7 @@ defmodule ReplicaTest do
       }
 
       assert VersionVector.compare(incoming_entry.vector, r.index["README"].vector) == :dominated
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
 
       assert r.index["README"].vector == %{node1: 2}
     end
@@ -97,7 +97,7 @@ defmodule ReplicaTest do
       assert r.index["README"].vector[@node] == 2
       assert r.index["README"].deleted == false
 
-      r =
+      {_, r} =
         Replica.apply_remote(r, "README", %Entry{
           vector: %{node1: 3},
           checksum: "cdefghij",
@@ -117,7 +117,7 @@ defmodule ReplicaTest do
       assert r.index["README"].vector[@node] == 2
       assert r.index["README"].deleted == true
 
-      r =
+      {_, r} =
         Replica.apply_remote(r, "README", %Entry{
           vector: %{node1: 3},
           checksum: "cdefghij",
@@ -142,7 +142,7 @@ defmodule ReplicaTest do
         deleted: false
       }
 
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
 
       assert r.index ==
                %{
@@ -177,7 +177,7 @@ defmodule ReplicaTest do
         deleted: true
       }
 
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
 
       assert r.index ==
                %{
@@ -208,13 +208,13 @@ defmodule ReplicaTest do
       assert VersionVector.compare(incoming_entry.vector, r.index["README"].vector) ==
                :dominates
 
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
 
       current_expected_index = %{"README" => incoming_entry}
 
       assert current_expected_index == r.index
       # Second apply
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
       assert r.index == current_expected_index
     end
 
@@ -234,7 +234,7 @@ defmodule ReplicaTest do
       assert VersionVector.compare(incoming_entry.vector, r.index["README"].vector) ==
                :concurrent
 
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
 
       current_expected_index = %{
         "README" => %Entry{
@@ -253,7 +253,7 @@ defmodule ReplicaTest do
 
       assert current_expected_index == r.index
       # Second apply
-      r = Replica.apply_remote(r, "README", incoming_entry)
+      {_, r} = Replica.apply_remote(r, "README", incoming_entry)
       assert r.index == current_expected_index
     end
   end

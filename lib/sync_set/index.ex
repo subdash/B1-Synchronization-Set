@@ -44,7 +44,8 @@ defmodule SyncSet.Index do
     replica =
       :dets.foldl(
         fn {path, entry}, acc ->
-          Replica.apply_remote(acc, path, entry)
+          {_outcome, replica} = Replica.apply_remote(acc, path, entry)
+          replica
         end,
         Replica.new(node),
         table
@@ -82,17 +83,15 @@ defmodule SyncSet.Index do
 
   @impl true
   def handle_call({:apply_remote, path, incoming_entry}, _from, state) do
-    replica = Replica.apply_remote(state.replica, path, incoming_entry)
-    commit(state, replica)
+    {outcome, replica} = Replica.apply_remote(state.replica, path, incoming_entry)
+    commit(state, replica, outcome)
   end
 
-  # --- Private functions ---
-
   # Shared tail for the three mutating handle_calls: persist the diff between
-  # the old and new replica indexes, then reply :ok with the new replica as state.
-  defp commit(state, new_replica) do
+  # the old and new replica indexes.
+  defp commit(state, new_replica, apply_remote_outcome \\ :ok) do
     persist_changes(state.replica.index, new_replica.index, state.table)
-    {:reply, :ok, %{state | replica: new_replica}}
+    {:reply, apply_remote_outcome, %{state | replica: new_replica}}
   end
 
   defp persist_changes(before_index, after_index, table) do
