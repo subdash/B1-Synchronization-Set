@@ -14,8 +14,4 @@ defmodule SyncSet.Config do
   def node_id() do
     Node.self()
   end
-
-  def topologies() do
-    Application.get_env(:sync_set, :topologies, [])
-  end
 end
