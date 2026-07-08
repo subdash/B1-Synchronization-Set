@@ -8,10 +8,12 @@ defmodule SyncSet.LocalChange do
   def init(opts) do
     index = Keyword.fetch!(opts, :index)
     control = Keyword.fetch!(opts, :control)
+    sync_dir = Keyword.fetch!(opts, :sync_dir)
 
     state = %{
       index: index,
-      control: control
+      control: control,
+      sync_dir: sync_dir
     }
 
     {:ok, state}
@@ -24,17 +26,21 @@ defmodule SyncSet.LocalChange do
 
   @impl true
   def handle_info({:stable, path}, state) do
+    # The Watcher reports an absolute path; read from it, but key the Index by the
+    # sync_dir-relative path so keys are portable across nodes (see Scanner, which
+    # derives keys the same way).
     with {:ok, binary} <- File.read(path) do
       size = byte_size(binary)
       checksum = Checksum.of_binary(binary)
+      key = Path.relative_to(path, state.sync_dir)
 
-      case Index.get(state.index, path) do
+      case Index.get(state.index, key) do
         %Entry{size: ^size, checksum: ^checksum} ->
           {:noreply, state}
 
         _ ->
-          Index.local_write(state.index, path, checksum, size)
-          send(state.control, {:local_change, path})
+          Index.local_write(state.index, key, checksum, size)
+          send(state.control, {:local_change, key})
           {:noreply, state}
       end
     else
@@ -46,10 +52,12 @@ defmodule SyncSet.LocalChange do
 
   @impl true
   def handle_info({:deleted, path}, state) do
-    case Index.get(state.index, path) do
+    key = Path.relative_to(path, state.sync_dir)
+
+    case Index.get(state.index, key) do
       %Entry{deleted: false} ->
-        Index.local_delete(state.index, path)
-        send(state.control, {:local_change, path})
+        Index.local_delete(state.index, key)
+        send(state.control, {:local_change, key})
         {:noreply, state}
 
       _ ->

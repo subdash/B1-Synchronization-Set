@@ -10,13 +10,23 @@ defmodule SyncSet.Control do
   """
 
   use GenServer
-  alias SyncSet.{Entry, Index, VersionVector}
+  alias SyncSet.{DataPlane, Entry, Index, TransferSupervisor, VersionVector}
 
   @impl true
   def init(opts) do
     index = Keyword.fetch!(opts, :index)
     data_plane = Keyword.fetch!(opts, :data_plane)
-    state = %{index: index, data_plane: data_plane}
+    sync_dir = Keyword.fetch!(opts, :sync_dir)
+    # transfer_fn is the seam for tests; production pulls bytes via the data plane.
+    transfer_fn = Keyword.get(opts, :transfer_fn, &TransferSupervisor.start_transfer/3)
+
+    state = %{
+      index: index,
+      data_plane: data_plane,
+      sync_dir: sync_dir,
+      transfer_fn: transfer_fn
+    }
+
     {:ok, state}
   end
 
@@ -32,11 +42,14 @@ defmodule SyncSet.Control do
     # LocalChange is correctly/consistently writing to the index before sending the local_change
     # message.
     %Entry{} = entry = Index.get(state.index, path)
+    # Carry our data-plane port in the announce so a peer that wants these bytes
+    # knows where to pull them from (peers can't otherwise learn our port).
+    port = DataPlane.get_port(state.data_plane)
     # Inter-node message to announce to peers that a path's entry has changed
     GenServer.abcast(
       Node.list(),
       SyncSet.Control,
-      {:announce, path, entry, Node.self()}
+      {:announce, path, entry, Node.self(), port}
     )
 
     {:noreply, state}
@@ -49,13 +62,13 @@ defmodule SyncSet.Control do
   end
 
   @impl true
-  def handle_info({:announce, path, incoming_entry, from_node}, state) do
+  def handle_cast({:announce, path, incoming_entry, from_node, from_port}, state) do
     # Another node broadcast an announce message with its own local entry at path.
     # Compare version vectors and decide what to do next.
     case Index.get(state.index, path) do
       nil ->
-        # No local entry -> incoming is new -> pull or apply tombstone 
-        act(path, nil, incoming_entry, from_node, state)
+        # No local entry -> incoming is new -> pull or apply tombstone
+        act(path, nil, incoming_entry, from_node, from_port, state)
 
       current ->
         case VersionVector.compare(current.vector, incoming_entry.vector) do
@@ -65,22 +78,23 @@ defmodule SyncSet.Control do
 
           # Delegate to act to handle tombstoned entry or dominating incoming entry
           result when result in [:dominated, :concurrent] ->
-            act(path, current, incoming_entry, from_node, state)
+            act(path, current, incoming_entry, from_node, from_port, state)
         end
     end
   end
 
   # How to handle new/incoming entry
-  defp act(path, current, incoming, from_node, state) do
+  defp act(path, current, incoming, from_node, from_port, state) do
     cond do
       # Tombstone. No fetch. Update index and delete local file if current/incoming agree.
       incoming.checksum == nil ->
         Index.apply_remote(state.index, path, incoming)
 
         case Index.get(state.index, path) do
-          # Only delete the file if the local index agrees that it is deleted
+          # Only delete the file if the local index agrees that it is deleted.
+          # `path` is a sync_dir-relative key, so join it to reach the real file.
           %Entry{deleted: true} ->
-            File.rm(path)
+            File.rm(Path.join(state.sync_dir, path))
 
           _ ->
             :ok
@@ -92,7 +106,7 @@ defmodule SyncSet.Control do
       current != nil and incoming.checksum == current.checksum ->
         {:noreply, state}
 
-      # Live content we lack -> fetch it
+      # Live content we lack -> fetch it from the announcing peer's data plane.
       true ->
         # TODO(conflict copies): for a *concurrent* live edit this just pulls the
         # incoming entry (and verify_and_land overwrites local), but it never
@@ -101,7 +115,14 @@ defmodule SyncSet.Control do
         # handling, so two nodes editing while both online won't produce the
         # keep-both copy until a later reconcile. apply_remote now returns the
         # `{:conflict, ...}` outcome that would let this path do the same.
-        send(state.data_plane, {:pull, from_node, path, incoming.checksum})
+        host =
+          from_node
+          |> Atom.to_string()
+          |> String.split("@")
+          |> List.last()
+          |> String.to_charlist()
+
+        state.transfer_fn.(%{host: host, port: from_port}, path, incoming)
         {:noreply, state}
     end
   end

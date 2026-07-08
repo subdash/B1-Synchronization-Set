@@ -38,19 +38,29 @@ defmodule SyncSet.Application do
          port: data_port, sync_dir: sync_dir, index: SyncSet.Index, name: SyncSet.DataPlane},
         # Control: announce/apply hub
         {SyncSet.Control,
-         index: SyncSet.Index, data_plane: SyncSet.DataPlane, name: SyncSet.Control},
+         index: SyncSet.Index,
+         data_plane: SyncSet.DataPlane,
+         sync_dir: sync_dir,
+         name: SyncSet.Control},
         # Scanner: kick off cold start scan early
         {SyncSet.Scanner, sync_dir: sync_dir, index: SyncSet.Index, control: SyncSet.Control},
         # LocalChange: subscriber for Watcher event
         {SyncSet.LocalChange,
-         index: SyncSet.Index, control: SyncSet.Control, name: SyncSet.LocalChange},
+         index: SyncSet.Index,
+         control: SyncSet.Control,
+         sync_dir: sync_dir,
+         name: SyncSet.LocalChange},
         # Watcher: start watching ongoing changes last among local pieces
         {SyncSet.Watcher, sync_dir: sync_dir, subscriber: SyncSet.LocalChange},
         # Cluster Supervisor: join cluster only once local state is ready
         {Cluster.Supervisor, [topologies, [name: SyncSet.ClusterSupervisor]]},
-        # Reconciler: last -- reacts to peers
+        # Reconciler: last -- reacts to peers. Must be named SyncSet.Reconciler: peers
+        # reconcile by calling {SyncSet.Reconciler, node} across the cluster.
         {SyncSet.Reconciler,
-         index: SyncSet.Index, sync_dir: sync_dir, data_plane: SyncSet.DataPlane}
+         index: SyncSet.Index,
+         sync_dir: sync_dir,
+         data_plane: SyncSet.DataPlane,
+         name: SyncSet.Reconciler}
       ]
     else
       []

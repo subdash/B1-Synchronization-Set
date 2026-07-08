@@ -38,7 +38,10 @@ defmodule SyncSet.Reconciler do
 
   @impl true
   def handle_info({:nodeup, node}, state) do
-    reconcile_with_peer(node, state)
+    Task.Supervisor.start_child(SyncSet.TransferSupervisor, fn ->
+      reconcile_with_peer(node, state)
+    end)
+
     {:noreply, state}
   end
 
@@ -51,7 +54,12 @@ defmodule SyncSet.Reconciler do
   # and attempt to reconcile its local index and disk with that of the peer.
   @impl true
   def handle_continue(:reconcile_existing, state) do
-    for node <- Node.list(), do: reconcile_with_peer(node, state)
+    for node <- Node.list() do
+      Task.Supervisor.start_child(SyncSet.TransferSupervisor, fn ->
+        reconcile_with_peer(node, state)
+      end)
+    end
+
     {:noreply, state}
   end
 
