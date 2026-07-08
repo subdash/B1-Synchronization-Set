@@ -1,6 +1,9 @@
 defmodule SyncSet.Config do
   def sync_dir() do
-    Application.get_env(:sync_set, :sync_dir)
+    case Application.get_env(:sync_set, :sync_dir) do
+      nil -> raise "sync_dir is not configured (set SYNC_DIR, or config :sync_set, :sync_dir)"
+      sync_dir -> sync_dir
+    end
   end
 
   def dets_path() do

@@ -41,10 +41,14 @@ defmodule SyncSet.ConfigTest do
     assert Config.node_id() == node_id
   end
 
-  test "Config.sync_dir/0 returns system setting, no default" do
-    assert Config.sync_dir() == nil
+  test "Config.sync_dir/0 raises when unset, returns system setting when set" do
+    Application.delete_env(:sync_set, :sync_dir)
+    assert_raise RuntimeError, fn -> Config.sync_dir() end
+
     Application.put_env(:sync_set, :sync_dir, "/some/dir")
     assert Config.sync_dir() == "/some/dir"
+  after
+    Application.delete_env(:sync_set, :sync_dir)
   end
 
   test "Config.dets_path/0 returns default and override" do
